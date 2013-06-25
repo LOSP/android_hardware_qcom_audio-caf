@@ -478,6 +478,39 @@ status_t AudioHardwareALSA::setVoiceVolume(float v)
     return NO_ERROR;
 }
 
+#if defined(QCOM_FM_ENABLED) && !defined(QCOM_NEW_FM)
+status_t  AudioHardwareALSA::setFmVolume(float value)
+{
+    Mutex::Autolock autoLock(mLock);
+    status_t status = NO_ERROR;
+
+    int vol;
+
+    for(ALSAHandleList::iterator it = mDeviceList.begin();
+      it != mDeviceList.end(); ++it) {
+        if((!strcmp(it->useCase, SND_USE_CASE_VERB_DIGITAL_RADIO)) ||
+           (!strcmp(it->useCase, SND_USE_CASE_MOD_PLAY_FM))) {
+            if (value < 0.0) {
+                ALOGW("setFmVolume(%f) under 0.0, assuming 0.0\n", value);
+                value = 0.0;
+            } else if (value > 1.0) {
+                ALOGW("setFmVolume(%f) over 1.0, assuming 1.0\n", value);
+                value = 1.0;
+            }
+            vol  = lrint((value * 0x2000) + 0.5);
+
+            ALOGV("setFmVolume(%f)\n", value);
+            ALOGV("Setting FM volume to %d (available range is 0 to 0x2000)\n", vol);
+
+            mALSADevice->setFmVolume(vol, &(*it));
+            break;
+        }
+    }
+
+    return status;
+}
+#endif
+
 status_t AudioHardwareALSA::setMasterVolume(float volume)
 {
     return NO_ERROR;
@@ -509,7 +542,9 @@ status_t AudioHardwareALSA::setParameters(const String8& keyValuePairs)
     AudioParameter param = AudioParameter(keyValuePairs);
     String8 key;
     String8 value;
+#ifdef QCOM_NEW_FM
     float fm_volume;
+#endif
     status_t status = NO_ERROR;
     int device;
     int btRate;
@@ -690,7 +725,8 @@ status_t AudioHardwareALSA::setParameters(const String8& keyValuePairs)
         param.remove(key);
     }
 
-    key = String8("fm_volume");
+#ifdef QCOM_NEW_FM
+    key = String8(AUDIO_PARAMETER_KEY_FM_VOLUME);
 
     if (param.getFloat(key, fm_volume) == NO_ERROR) {
         if (fm_volume < 0.0) {
@@ -708,6 +744,7 @@ status_t AudioHardwareALSA::setParameters(const String8& keyValuePairs)
         mALSADevice->setFmVolume(fm_volume);
         param.remove(key);
     }
+#endif
 
     key = String8("a2dp_sink_address");
     if (param.get(key, value) == NO_ERROR) {
