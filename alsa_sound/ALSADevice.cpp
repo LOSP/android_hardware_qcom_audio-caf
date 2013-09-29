@@ -25,7 +25,6 @@
 #include "AudioHardwareALSA.h"
 #include <media/AudioRecord.h>
 #include <dlfcn.h>
-#include <math.h>
 #ifdef USE_A2220
 #include <sound/a2220.h>
 #endif
@@ -101,10 +100,6 @@ ALSADevice::ALSADevice() {
     mCallMode = AUDIO_MODE_NORMAL;
     mInChannels = 0;
     mIsFmEnabled = false;
-#ifdef QCOM_NEW_FM
-    //Initialize fm volume to value corresponding to unity volume	92
-    mFmVolume = lrint((0.0 * 0x2000) + 0.5);
-#endif
     char value[128], platform[128], baseband[128];
 
     property_get("persist.audio.handset.mic",value,"0");
@@ -779,11 +774,7 @@ void ALSADevice::switchDevice(alsa_handle_t *handle, uint32_t devices, uint32_t 
     }
 #ifdef QCOM_FM_ENABLED
     if (rxDevice != NULL) {
-#ifndef QCOM_NEW_FM
         setFmVolume(mFmVolume, handle);
-#else
-        setFmVolume(mFmVolume);
-#endif
     }
 #endif
     ALOGD("switchDevice: mCurTxUCMDevivce %s mCurRxDevDevice %s", mCurTxUCMDevice, mCurRxUCMDevice);
@@ -817,7 +808,6 @@ void ALSADevice::switchDevice(alsa_handle_t *handle, uint32_t devices, uint32_t 
         }
     }
 #endif
-
 #ifdef QCOM_CSDCLIENT_ENABLED
     if (isPlatformFusion3() && (inCallDevSwitch == true)) {
 
@@ -1397,11 +1387,7 @@ status_t ALSADevice::startFm(alsa_handle_t *handle)
     }
 
     mIsFmEnabled = true;
-#ifndef QCOM_NEW_FM
     setFmVolume(mFmVolume, handle);
-#else
-    setFmVolume(mFmVolume);
-#endif
     if (devName) {
         free(devName);
         devName = NULL;
@@ -1417,26 +1403,16 @@ Error:
     return NO_INIT;
 }
 
-#ifndef QCOM_NEW_FM
 status_t ALSADevice::setFmVolume(int value, alsa_handle_t *handle)
-#else
-status_t ALSADevice::setFmVolume(int value)
-#endif
 {
     status_t err = NO_ERROR;
-#ifndef QCOM_NEW_FM
     int ret = 0;
     char val_str[100], *volMixerCTL;
-#endif
 
-#ifdef QCOM_NEW_FM
-    mFmVolume = value;
-#endif
     if (!mIsFmEnabled) {
         return INVALID_OPERATION;
     }
 
-#ifndef QCOM_NEW_FM
     strlcpy(val_str, "PlaybackVolume/",sizeof("PlaybackVolume/"));
     strlcat(val_str, "Play FM", sizeof(val_str));
 
@@ -1450,9 +1426,6 @@ status_t ALSADevice::setFmVolume(int value)
 
     setMixerControl(volMixerCTL,value,0);
     mFmVolume = value;
-#else
-    setMixerControl("Internal FM RX Volume",value,0);
-#endif
 
     return err;
 }
